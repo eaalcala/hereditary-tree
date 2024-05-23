@@ -1,54 +1,73 @@
 import csv
+import sys
+
 import argparse
 
-# TODO HINT Workshop 4
 def arg_parser():
     parser = argparse.ArgumentParser(
         prog='Hereditary Tree',
         description='Finds probabilities of inheriting trait for every person in a family'
     )
     # Define the command-line arguments.
-    raise NotImplementedError
+    parser.add_argument("i", type=file_type_checker('.csv'), help="Input file of type .csv")
+    return parser.parse_args()
 
-
-# TODO IMPLEMENT. HINT: Workshop 4
 def file_type_checker(extension):
-    raise NotImplementedError
+    def check(file_name):
+        global error
+        if not file_name.lower().endswith(extension):
+            # Usually you would throw an exception here, but it's easier to test with a string variable
+            error = f"File must be a {extension} file"
+            return file_name
+        return file_name
+    return check
 
 
 def main():
     # Parse the command-line arguments.
     ARGS = arg_parser()
 
+    # Check for proper usage
+    if len(sys.argv) != 2:
+        sys.exit("Usage: python heredity.py data.csv")
     people = load_data(ARGS.i)
 
     # Keep track of gene and trait probabilities for each person
     probabilities = dict()
 
     for person, data in people.items():
-        '''
-        TODO: iterate over the 'trait' value of 'data' to assign the 
-            correct value in probabilities. 
-        
-            probabilities should be structured as such:
-            probabilities = {
-                "person": {
-                    "gene": {
-                        2: 1,
-                        1: 1, 
-                        0: 0
-                    }, 
-                    "trait": 1
-                }, 
-                "person2": ...
+        if data['trait'] == 1:
+            probabilities[person] = {
+                "gene": {
+                    2: 1,
+                    1: 0,
+                    0: 0
+                },
+                "trait": int(data['trait'])
             }
-        '''
-        raise NotImplementedError
+        elif data['trait'] == None:
+            probabilities[person] = {
+                "gene": {
+                    2: 0,
+                    1: 0,
+                    0: 0
+                },
+                "trait": data['trait']
+            }
+        else:
+            probabilities[person] = {
+                "gene": {
+                    2: 0,
+                    1: 0,
+                    0: 1
+                },
+                "trait": int(data['trait'])
+            }
 
 
-
-    # calculate_trait will determine the phenotype('trait') based on genotype
     calculate_trait(probabilities, people)
+
+    # names = set(people)
 
     # Print results
     for person in people:
@@ -62,19 +81,18 @@ def main():
                 p = probabilities[person][field][value]
                 print(f"    {value}: {p:.4f}")
 
-# This method will determine 
+
 def calculate_trait(probabilities, people):
     for person, data in probabilities.items():
-        # we only want to calculate the trait when it is set to None
         if data['trait'] == None:
-            '''
-            TODO: fetch the father and mother genotypes from the 'person' we're looking at
-                    using the people dictionary. Then assign the appropriate value in the
-                    probabilities dictionary using the trait_helper() function.
-            '''
-            raise NotImplementedError
+            father = probabilities[people[person]['father']]
+            mother = probabilities[people[person]['mother']]
+            fgenotype = parent_genotype(father['gene'])
+            mgenotype = parent_genotype(mother['gene'])
+            probabilities[person] = trait_helper(fgenotype, mgenotype)
+    
 
-# Note: This method will only work for beginners part of the project.
+# Note: This method will only work for beginners.
 # Here we just walk through the gene and check what genotype the parent has
 # Since it is only 0 or 2 for the beginner case, we can just return true
 # Whenever one of the values of the dictionary is 1
@@ -85,6 +103,9 @@ def parent_genotype(gene):
 
 # calculates probability of a child having a trait given parent's trait & genotype information
 def trait_helper(genes1, genes2):
+
+    maximum = max(genes1, genes2)
+    minimum = min(genes1, genes2)
     to_return = {
         "gene": {
             2: 0,
@@ -93,20 +114,32 @@ def trait_helper(genes1, genes2):
         },
         "trait": 0
     }
-    '''
-    TODO: Given the two genotypes passed in to this function, 
-            determine the correct possible genotypes and traits 
-            to return. 
+    if maximum == 2 and minimum == 2:
+        to_return['gene'][2] = 1
+        to_return['trait'] = 1
+        return to_return
 
-            For example, if we had an example_dict that we wanted
-            to return, we would fill it with the possibility it could
-            have 0, 1, or 2 of the alleles of interest by labelling it with
-            example_dict['gene'][0] = ? ; example_dict['gene'][1] = ? ;
-            example_dict['gene'][2] = ?. We could also determine the probability
-            that it could inherit the trait and store it in example_dict['trait]
-            with values such as 1, 0.5, 0.25, etc.
-    '''
-    raise NotImplementedError
+    if maximum == 2 and minimum == 1:
+        to_return['gene'][2] = 0.5
+        to_return['gene'][1] = 0.5
+        to_return['trait'] = 0.5
+        return to_return
+
+
+    if maximum == 2 and minimum == 0:
+        to_return['gene'][1] = 1
+        to_return['trait'] = 0
+        return to_return
+
+    if maximum == 1 and minimum == 1:
+        to_return['gene'][2] = 0.25
+        to_return['gene'][1] = 0.5
+        to_return['gene'][0] = 0.25
+        to_return['trait'] = 0.25
+        return to_return
+
+    to_return['gene'][0] = 1
+    return to_return
 
 
 
@@ -121,10 +154,16 @@ def load_data(filename):
     with open(filename) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # TODO: load data from each row into the dictionary data here
-            raise NotImplementedError
+            name = row["name"]
+            data[name] = {
+                "name": name,
+                "mother": row["mother"] or None,
+                "father": row["father"] or None,
+                "trait": (True if row["trait"] == "1" else
+                          False if row["trait"] == "0" else None)
+            }
     return data
 
-# runs when we call the python file
+
 if __name__ == "__main__":
     main()

@@ -1,50 +1,68 @@
 import csv
+import sys
+
 import argparse
 
-# TODO HINT Workshop 4
 def arg_parser():
     parser = argparse.ArgumentParser(
         prog='Hereditary Tree',
         description='Finds probabilities of inheriting trait for every person in a family'
     )
     # Define the command-line arguments.
-    raise NotImplementedError
+    parser.add_argument("i", type=file_type_checker('.csv'), help="Input file of type .csv")
+    return parser.parse_args()
 
-
-# TODO HINT: Workshop 4
 def file_type_checker(extension):
-    raise NotImplementedError
+    def check(file_name):
+        global error
+        if not file_name.lower().endswith(extension):
+            # Usually you would throw an exception here, but it's easier to test with a string variable
+            error = f"File must be a {extension} file"
+            return file_name
+        return file_name
+    return check
 
 
 def main():
     # Parse the command-line arguments.
     ARGS = arg_parser()
 
+    # Check for proper usage
+    if len(sys.argv) != 2:
+        sys.exit("Usage: python heredity.py data.csv")
     people = load_data(ARGS.i)
 
     # Keep track of gene and trait probabilities for each person
-
     probabilities = dict()
 
     for person, data in people.items():
-        '''
-        TODO: iterate over the 'trait' value of 'data' to assign the 
-            correct value in probabilities. 
-        
-            probabilities should be structured as such:
-            probabilities = {
-                "person": {
-                    "gene": {
-                        2: 1,
-                        1: 1, 
-                        0: 0
-                    }, 
-                    "trait": 1
-                }, 
-                "person2": ...
+        if data['trait'] == 1:
+            probabilities[person] = {
+                "gene": {
+                    2: 1,
+                    1: 0,
+                    0: 0
+                },
+                "trait": float(data['trait'])
             }
-        '''
-        raise NotImplementedError
+        elif data['trait'] == None:
+            probabilities[person] = {
+                "gene": {
+                    2: 0,
+                    1: 0,
+                    0: 0
+                },
+                "trait": data['trait'] 
+            }
+        else:
+            probabilities[person] = {
+                "gene": {
+                    2: 0,
+                    1: 0,
+                    0: 1
+                },
+                "trait": float(data['trait'])
+            }
 
 
     calculate_trait(probabilities, people)
@@ -67,17 +85,13 @@ def main():
 def calculate_trait(probabilities, people):
     for person, data in probabilities.items():
         if data['trait'] == None:
-            '''
-            TODO: fetch the father and mother genotypes from the 'person' we're looking at
-                    using the people dictionary. Then assign the appropriate value in the
-                    probabilities dictionary using the trait_helper() function.
-            '''
-            raise NotImplementedError
+            father = people[person]['father']
+            mother = people[person]['mother']
+            probabilities[person] = trait_helper(father, mother, probabilities, people)
     
 
 
 # calculates probability of a child having a trait given parent's trait & genotype information
-# @returns an object to_return with 
 def trait_helper(father, mother, probabilities, people):
     to_return = {
         "gene": {
@@ -87,26 +101,45 @@ def trait_helper(father, mother, probabilities, people):
         },
         "trait": 0
     }
-    '''
-    TODO: Given the two genotypes of parents as an input, known probabilities and
-            family tree determine the correct possible genotypes and traits 
-            to return. For the given person.
 
-            Here we need to make sure that when we calculate probability for a 
-            person X, the probabilities for 0,1,2 traits for their ancestors 
-            are known. For instance, we have 3 generations and initially we only
-            know the "trait" information of the grandparents. Then, if our code
-            is iterating through the people in the order e.g. grandson first, 
-            parent after, we would not be able to calculate probability of 
-            grandson rightaway! There's 2 approaches you could use to tackle this:
-            1. Build an actual heredity tree data structure and pre-order traverse it
-                or use topological sort and traverse it.
-            2. (An easier approach) Recursively call for trait_helper() whenever
-            we don't know the genotype of the parent.
-    '''
+    father_data = probabilities[father]
+    mother_data = probabilities[mother]
 
 
-    raise NotImplementedError
+    # recursively update family tree
+    if father_data['trait'] == None:
+        grandfather = people[father]['father']
+        grandmother = people[father]['mother']
+        father_data = trait_helper(grandfather, grandmother, probabilities, people)
+
+    if mother_data['trait'] == None:
+        grandfather = people[mother]['father']
+        grandmother = people[mother]['mother']
+        mother_data = trait_helper(grandfather, grandmother, probabilities, people)
+
+    gfather = father_data['gene']
+    gmother = mother_data['gene']
+
+    to_return['gene'][2] =  1.0 * gfather[2] * gmother[2] + \
+                            0.5 * gfather[2] * gmother[1] + \
+                            0.5 * gfather[1] * gmother[2] + \
+                            0.25 * gfather[1] * gmother[1]
+
+    to_return['gene'][1] = 0.5 * gfather[2] * gmother[1] + \
+                            0.5 * gfather[1] * gmother[2] + \
+                            0.5 * gfather[1] * gmother[1] + \
+                            1.0 * gfather[2] * gmother[0] + \
+                            1.0 * gfather[0] * gmother[2] + \
+                            0.5 * gfather[1] * gmother[0] + \
+                            0.5 * gfather[0] * gmother[1]
+
+    to_return['gene'][0] = 1.0 * gfather[0] * gmother[0] + \
+                            0.5 * gfather[1] * gmother[0] + \
+                            0.5 * gfather[0] * gmother[1] + \
+                            0.25 * gfather[1] * gmother[1]
+
+    to_return['trait'] = to_return['gene'][2]
+    return to_return
 
 
 
@@ -121,10 +154,16 @@ def load_data(filename):
     with open(filename) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # TODO: load data from each row into the dictionary data here
-            raise NotImplementedError
+            name = row["name"]
+            data[name] = {
+                "name": name,
+                "mother": row["mother"] or None,
+                "father": row["father"] or None,
+                "trait": (True if row["trait"] == "1" else
+                          False if row["trait"] == "0" else None)
+            }
     return data
 
-# runs when we call the python file
+
 if __name__ == "__main__":
     main()
